@@ -89,6 +89,7 @@ def run_awq(
     mse_range=True,
     # some configs for ablation study
     calib_data="pileval",
+    threshold=0.0
 ):
     from ..utils.calib_data import get_calib_dataset
     from ..utils.module import append_str_prefix, get_op_name
@@ -185,6 +186,9 @@ def run_awq(
                 q_config=q_config,
                 input_feat=input_feat,
             )
+            if threshold:
+                for _, _, scales in scales_list:
+                    scales[scales < threshold] = 1
             # apply_scale(layer, scales_list, input_feat_dict=input_feat)
             apply_scale(layers[i], scales_list, input_feat_dict=input_feat)
             # append prefix to make names global

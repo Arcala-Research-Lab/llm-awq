@@ -25,6 +25,7 @@ import tqdm
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model_path", type=str, help="path of the hf model")
+parser.add_argument("--cache_dir", default="", type=str )
 parser.add_argument("--batch_size", type=int, default=1, help="batch size")
 parser.add_argument("--tasks", default=None, type=str)
 parser.add_argument("--output_path", default=None, type=str)
@@ -49,6 +50,7 @@ parser.add_argument(
 # quantization config
 parser.add_argument("--w_bit", type=int, default=None)
 parser.add_argument("--q_group_size", type=int, default=-1)
+parser.add_argument("--threshold", type=float, default=0.0, help="threshold to set scale values to 1 (none if 0)")
 parser.add_argument("--no_zero_point", action="store_true", help="disable zero_point")
 parser.add_argument("--q_backend", type=str, default="fake", choices=["fake", "real"])
 # save/load real quantized weights
@@ -88,8 +90,8 @@ print("Quantization config:", q_config)
 
 
 def build_model_and_enc(model_path):
-    if not os.path.exists(model_path):  # look into ssd
-        raise FileNotFoundError(f"{model_path} not found!")
+    # if not os.path.exists(model_path):  # look into ssd
+    #     raise FileNotFoundError(f"{model_path} not found!")
     print(f"* Building model {model_path}")
 
     # all hf model
@@ -159,7 +161,7 @@ def build_model_and_enc(model_path):
         kwargs = {"torch_dtype": torch.float16, "low_cpu_mem_usage": True}
         if not vila_10_quant_mode:
             model = AutoModelForCausalLM.from_pretrained(
-                model_path, config=config, trust_remote_code=True, **kwargs
+                model_path, cache_dir=args.cache_dir, config=config, trust_remote_code=True, **kwargs
             )
 
         model.eval()
@@ -174,6 +176,7 @@ def build_model_and_enc(model_path):
                 q_config=q_config,
                 n_samples=128,
                 seqlen=512,
+                threshold=args.threshold
             )
             if args.dump_awq:
                 dirpath = os.path.dirname(args.dump_awq)
