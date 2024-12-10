@@ -59,6 +59,7 @@ parser.add_argument("--dump_fake", type=str, default=None, help="save fake-quant
 parser.add_argument("--load_quant", type=str, default=None, help="load quantized model")
 # apply/save/load awq
 parser.add_argument("--run_awq", action="store_true", help="perform awq search process")
+parser.add_argument("--eval_seqlen", type=int, default=2048)
 parser.add_argument(
     "--dump_awq", type=str, default=None, help="save the awq search results"
 )
@@ -258,7 +259,7 @@ def main():
         if args.tasks == "wikitext":
             testenc = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
             testenc = enc("\n\n".join(testenc["text"]), return_tensors="pt")
-            model.seqlen = 2048
+            model.seqlen = args.eval_seqlen
             testenc = testenc.input_ids.to(model.device)
             nsamples = testenc.numel() // model.seqlen
             model = model.eval()
