@@ -11,8 +11,9 @@ from accelerate import (
     load_checkpoint_in_model,
 )
 from accelerate.utils.modeling import get_balanced_memory
+from awq.quantize.qmodule import WQLinear
 from awq.utils.parallel import auto_parallel
-from awq.quantize.pre_quant import run_awq, apply_awq
+from awq.quantize.pre_quant import get_blocks, get_named_linears, run_awq, apply_awq
 from awq.quantize.quantizer import (
     pseudo_quantize_model_weight,
     real_quantize_model_weight,
@@ -59,6 +60,7 @@ parser.add_argument("--dump_fake", type=str, default=None, help="save fake-quant
 parser.add_argument("--load_quant", type=str, default=None, help="load quantized model")
 # apply/save/load awq
 parser.add_argument("--run_awq", action="store_true", help="perform awq search process")
+parser.add_argument("--check_sparsity", action="store_true", help="check sparsity result of awq")
 parser.add_argument("--eval_seqlen", type=int, default=2048)
 parser.add_argument(
     "--dump_awq", type=str, default=None, help="save the awq search results"
@@ -253,6 +255,37 @@ def main():
 
     # a hack here to auto set model group
     model, enc = build_model_and_enc(args.model_path)
+
+    if args.check_sparsity:
+        model = model.eval()
+        layers = get_blocks(model)
+        total_zeroes = torch.zeros(1)
+        total_n = torch.zeros(1)
+        s = []
+        z = []
+        w = []
+        for i in tqdm.tqdm(range(len(layers)), desc="checking sparsities..."):
+            layer = layers[i]
+            named_linears = {name: m for name, m in layer.named_modules() if isinstance(m, WQLinear) or isinstance(m, nn.Linear)}
+            print(named_linears)
+            for name, module in named_linears.items():
+                if isinstance(module, WQLinear):
+                    zeroes = torch.sum(module.qweight.data == 0).item()
+                    n = module.qweight.data.numel()
+                else:
+                    zeroes = torch.sum(module.weight.data == 0).item()
+                    n = module.weight.data.numel()
+                print(f'{name} sparsity: {zeroes}/{n}')
+                total_zeroes += zeroes
+                total_n += n
+                if isinstance(module, WQLinear):
+                    w.append(module.qweight.data)
+                    s.append(module.scales.data)
+                    z.append(module.scaled_zeros.data)
+        torch.save(w, 'out/awq_weights')
+        torch.save(s, 'out/awq_scales')
+        torch.save(z, 'out/awq_zeroes')
+        print(f'total sparsity: {total_zeroes/total_n}')
 
     if args.tasks is not None:
         # https://github.com/IST-DASLab/gptq/blob/2d65066eeb06a5c9ff5184d8cebdf33662c67faf/llama.py#L206
