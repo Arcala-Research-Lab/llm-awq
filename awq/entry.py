@@ -261,13 +261,9 @@ def main():
         layers = get_blocks(model)
         total_zeroes = torch.zeros(1)
         total_n = torch.zeros(1)
-        s = []
-        z = []
-        w = []
         for i in tqdm.tqdm(range(len(layers)), desc="checking sparsities..."):
             layer = layers[i]
             named_linears = {name: m for name, m in layer.named_modules() if isinstance(m, WQLinear) or isinstance(m, nn.Linear)}
-            print(named_linears)
             for name, module in named_linears.items():
                 if isinstance(module, WQLinear):
                     zeroes = torch.sum(module.qweight.data == 0).item()
@@ -275,16 +271,9 @@ def main():
                 else:
                     zeroes = torch.sum(module.weight.data == 0).item()
                     n = module.weight.data.numel()
-                print(f'{name} sparsity: {zeroes}/{n}')
+                print(f'layer {i} module {name} sparsity: {zeroes}/{n} {zeroes/n if n != 0 else 0}')
                 total_zeroes += zeroes
                 total_n += n
-                if isinstance(module, WQLinear):
-                    w.append(module.qweight.data)
-                    s.append(module.scales.data)
-                    z.append(module.scaled_zeros.data)
-        torch.save(w, 'out/awq_weights')
-        torch.save(s, 'out/awq_scales')
-        torch.save(z, 'out/awq_zeroes')
         print(f'total sparsity: {total_zeroes/total_n}')
 
     if args.tasks is not None:
