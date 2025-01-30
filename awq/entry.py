@@ -20,6 +20,7 @@ from awq.quantize.quantizer import (
 )
 from awq.utils.lm_eval_adaptor import LMEvalAdaptor
 from awq.utils.utils import simple_dispatch_model
+from awq.scale_list_analysis.modify_scales import round_nearest_power_of_2, set_all_ones
 from datasets import load_dataset
 from torch import nn
 import tqdm
@@ -61,6 +62,8 @@ parser.add_argument("--load_quant", type=str, default=None, help="load quantized
 # apply/save/load awq
 parser.add_argument("--run_awq", action="store_true", help="perform awq search process")
 parser.add_argument("--check_sparsity", action="store_true", help="check sparsity result of awq")
+parser.add_argument("--round_to_p2", action="store_true", help="rounds awq scales to nearest power of 2")
+parser.add_argument("--set_to_1", action="store_true", help="sets awq scales to 1 (removes awq)")
 parser.add_argument("--eval_seqlen", type=int, default=2048)
 parser.add_argument(
     "--dump_awq", type=str, default=None, help="save the awq search results"
@@ -193,6 +196,10 @@ def build_model_and_enc(model_path):
         if args.load_awq:
             print("Loading pre-computed AWQ results from", args.load_awq)
             awq_results = torch.load(args.load_awq, map_location="cpu")
+            if args.round_to_p2:
+                round_nearest_power_of_2(awq_results)
+            if args.set_to_1:
+                set_all_ones(awq_results)
             apply_awq(model, awq_results)
 
         # weight quantization
