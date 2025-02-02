@@ -13,14 +13,16 @@ from accelerate import (
 from accelerate.utils.modeling import get_balanced_memory
 from awq.quantize.qmodule import WQLinear
 from awq.utils.parallel import auto_parallel
-from awq.quantize.pre_quant import get_blocks, get_named_linears, run_awq, apply_awq
+from awq.quantize.pre_quant import get_blocks, run_awq, apply_awq
 from awq.quantize.quantizer import (
     pseudo_quantize_model_weight,
+    get_scales_zeros,
     real_quantize_model_weight,
 )
 from awq.utils.lm_eval_adaptor import LMEvalAdaptor
 from awq.utils.utils import simple_dispatch_model
 from awq.scale_list_analysis.modify_scales import round_nearest_power_of_2, set_all_ones
+from awq.scale_list_analysis.get_real_scales_and_zeros import export_scales_zeros
 from datasets import load_dataset
 from torch import nn
 import tqdm
@@ -58,6 +60,7 @@ parser.add_argument("--q_backend", type=str, default="fake", choices=["fake", "r
 # save/load real quantized weights
 parser.add_argument("--dump_quant", type=str, default=None, help="save quantized model")
 parser.add_argument("--dump_fake", type=str, default=None, help="save fake-quantized model")
+parser.add_argument("--dump_zero_scales", type=str, default=None, help="save fake-quantized model")
 parser.add_argument("--load_quant", type=str, default=None, help="load quantized model")
 # apply/save/load awq
 parser.add_argument("--run_awq", action="store_true", help="perform awq search process")
@@ -204,6 +207,10 @@ def build_model_and_enc(model_path):
 
         # weight quantization
         if args.w_bit is not None:
+            if args.dump_zero_scales:
+                scales, zeros = get_scales_zeros(model, w_bit=args.w_bit, q_config=q_config)
+                export_scales_zeros(scales, zeros, os.path.join(args.dump_zero_scales, f'fake_scales'), os.path.join(args.dump_zero_scales, f'fake_zeros'))
+                
             if args.q_backend == "fake":
                 assert (
                     args.dump_quant is None

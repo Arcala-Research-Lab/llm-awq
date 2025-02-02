@@ -74,7 +74,6 @@ def pseudo_quantize_tensor(
         scales = (max_val - min_val).clamp(min=1e-5) / max_int
         zeros = (-torch.round(min_val / scales)).clamp_(min_int, max_int)
     else:  # we actually never used this
-        assert min_val is None
         max_val = w.abs().amax(dim=1, keepdim=True)
         max_val = max_val.clamp(min=1e-5)
         max_int = 2 ** (n_bit - 1) - 1
@@ -120,6 +119,29 @@ def pseudo_quantize_model_weight(
                 m.weight.data, n_bit=w_bit, **q_config
             )
             m.cpu()
+
+@torch.no_grad()
+def get_scales_zeros(
+    model,
+    w_bit,
+    q_config,
+):
+    from .pre_quant import get_blocks, get_named_linears
+
+    layers = get_blocks(model)
+    scales = {}
+    zeros = {}
+    for i in tqdm(range(len(layers)), desc="getting scale values..."):
+        named_linears = get_named_linears(layers[i])
+        for n, m in named_linears.items():
+            m.cuda()
+            _, scales_indiv, zeros_indiv = pseudo_quantize_tensor(
+                m.weight.data, n_bit=w_bit, get_scale_zp=True, **q_config
+            )
+            m.cpu()
+            scales[f'{n}_layer{i}'] = scales_indiv
+            zeros[f'{n}_layer{i}'] = zeros_indiv
+    return scales, zeros
 
 
 @torch.no_grad()
