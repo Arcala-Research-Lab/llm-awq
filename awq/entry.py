@@ -67,6 +67,7 @@ parser.add_argument("--run_awq", action="store_true", help="perform awq search p
 parser.add_argument("--check_sparsity", action="store_true", help="check sparsity result of awq")
 parser.add_argument("--round_to_p2", action="store_true", help="rounds awq scales to nearest power of 2")
 parser.add_argument("--set_to_1", action="store_true", help="sets awq scales to 1 (removes awq)")
+parser.add_argument("--prune_highbit", action="store_true", help="prunes at w=2 then sets non-pruned at w=4")
 parser.add_argument("--eval_seqlen", type=int, default=2048)
 parser.add_argument(
     "--dump_awq", type=str, default=None, help="save the awq search results"
@@ -172,6 +173,11 @@ def build_model_and_enc(model_path):
             model = AutoModelForCausalLM.from_pretrained(
                 model_path, cache_dir=args.cache_dir, config=config, trust_remote_code=True, **kwargs
             )
+            if args.prune_highbit:
+                model2 = AutoModelForCausalLM.from_pretrained(
+                    model_path, cache_dir=args.cache_dir, config=config, trust_remote_code=True, **kwargs
+                )
+                model2.eval()
 
         model.eval()
 
@@ -204,6 +210,8 @@ def build_model_and_enc(model_path):
             if args.set_to_1:
                 set_all_ones(awq_results)
             apply_awq(model, awq_results)
+            if args.prune_highbit:
+                apply_awq(model2, awq_results)
 
         # weight quantization
         if args.w_bit is not None:
@@ -216,6 +224,10 @@ def build_model_and_enc(model_path):
                     args.dump_quant is None
                 ), "Need to use real quantization to dump quantized weights"
                 pseudo_quantize_model_weight(model, w_bit=args.w_bit, q_config=q_config)
+
+                if args.prune_highbit:
+                    pseudo_quantize_model_weight(model2, w_bit=4, q_config=q_config)
+
                 if args.dump_fake:
                     model.save_pretrained(args.dump_fake)
                     print("Pseudo-quantized models saved at", args.dump_fake)
@@ -254,6 +266,8 @@ def build_model_and_enc(model_path):
         )
         model = dispatch_model(model, device_map=device_map)
 
+    if args.prune_highbit:
+        return model, model2, enc
     return model, enc
 
 
@@ -268,17 +282,26 @@ def main():
         exit()
 
     # a hack here to auto set model group
-    model, enc = build_model_and_enc(args.model_path)
+    if args.prune_highbit:
+        model, model2, enc = build_model_and_enc(args.model_path)
+    else:
+        model, enc = build_model_and_enc(args.model_path)
 
-    if args.check_sparsity:
+    if args.check_sparsity or args.prune_highbit:
         model = model.eval()
         layers = get_blocks(model)
+        if args.prune_highbit:
+            layers2 = get_blocks(model2)
         total_zeroes = torch.zeros(1)
         total_n = torch.zeros(1)
         for i in tqdm.tqdm(range(len(layers)), desc="checking sparsities..."):
             layer = layers[i]
             named_linears = {name: m for name, m in layer.named_modules() if isinstance(m, WQLinear) or isinstance(m, nn.Linear)}
+            if args.prune_highbit:
+                named_linears2 = {name: m for name, m in layers2[i].named_modules() if isinstance(m, WQLinear) or isinstance(m, nn.Linear)}
             for name, module in named_linears.items():
+                if args.prune_highbit:
+                    module.weight.data[module.weight.data != 0] = named_linears2[name].weight.data.to(module.weight.data.device)[module.weight.data != 0]
                 if isinstance(module, WQLinear):
                     zeroes = torch.sum(module.qweight.data == 0).item()
                     n = module.qweight.data.numel()
