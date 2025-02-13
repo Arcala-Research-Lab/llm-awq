@@ -205,13 +205,14 @@ def build_model_and_enc(model_path):
         if args.load_awq:
             print("Loading pre-computed AWQ results from", args.load_awq)
             awq_results = torch.load(args.load_awq, map_location="cpu")
+            awq_results2 = torch.load(args.load_awq + "4", map_location="cpu")
             if args.round_to_p2:
                 round_nearest_power_of_2(awq_results)
             if args.set_to_1:
                 set_all_ones(awq_results)
             apply_awq(model, awq_results)
             if args.prune_highbit:
-                apply_awq(model2, awq_results)
+                apply_awq(model2, awq_results2)
 
         # weight quantization
         if args.w_bit is not None:
