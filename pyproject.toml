@@ -16,7 +16,7 @@ dependencies = [
     "accelerate", "sentencepiece", "tokenizers>=0.12.1",
     "torch>=2.0.0", "torchvision", 
     "transformers==4.37.2", 
-    "lm_eval==0.3.0", "texttable",
+    "lm_eval==0.4.7", "peft==0.10.0", "texttable",
     "toml", "attributedict",
     "protobuf",
     "gradio==3.35.2", "gradio_client==0.2.9",
