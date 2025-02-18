@@ -1,4 +1,5 @@
-from lm_eval import evaluator, tasks
+from lm_eval import evaluator
+from lm_eval.utils import make_table
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 import torch
 import argparse
@@ -19,7 +20,7 @@ from awq.quantize.quantizer import (
     get_scales_zeros,
     real_quantize_model_weight,
 )
-from awq.utils.lm_eval_adaptor import LMEvalAdaptor
+from lm_eval.models.huggingface import HFLM
 from awq.utils.utils import simple_dispatch_model
 from awq.scale_list_analysis.modify_scales import round_nearest_power_of_2, set_all_ones
 from awq.scale_list_analysis.get_real_scales_and_zeros import export_scales_zeros
@@ -291,8 +292,23 @@ def main():
         print(f'total sparsity: {total_zeroes/total_n}')
 
     if args.tasks is not None:
+        if args.tasks != 'wikitext':
+            task_names = [x for x in args.tasks.split(",") if x != 'wikitext']
+
+            lm = HFLM(model, max_length=args.eval_seqlen, parallelize=False)
+            # lm_eval_model = LMEvalAdaptor(args.model_path, model, enc, args.batch_size)
+            results = evaluator.simple_evaluate(
+                model=lm,
+                tasks=task_names,
+                batch_size=args.batch_size,
+                num_fewshot=args.num_fewshot,
+            )
+
+            # print(results)
+            print(make_table(results))
+
         # https://github.com/IST-DASLab/gptq/blob/2d65066eeb06a5c9ff5184d8cebdf33662c67faf/llama.py#L206
-        if args.tasks == "wikitext":
+        if 'wikitext' in args.tasks:
             testenc = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
             testenc = enc("\n\n".join(testenc["text"]), return_tensors="pt")
             model.seqlen = args.eval_seqlen
@@ -325,19 +341,6 @@ def main():
                 os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
                 with open(args.output_path, "w") as f:
                     json.dump(results, f, indent=2)
-        else:
-            task_names = args.tasks.split(",")
-
-            lm_eval_model = LMEvalAdaptor(args.model_path, model, enc, args.batch_size)
-            results = evaluator.simple_evaluate(
-                model=lm_eval_model,
-                tasks=task_names,
-                batch_size=args.batch_size,
-                no_cache=True,
-                num_fewshot=args.num_fewshot,
-            )
-
-            print(evaluator.make_table(results))
 
         if args.output_path is not None:
             os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
