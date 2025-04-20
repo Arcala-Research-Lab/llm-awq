@@ -171,7 +171,7 @@ def build_model_and_enc(model_path):
         kwargs = {"torch_dtype": torch.float16, "low_cpu_mem_usage": True}
         if not vila_10_quant_mode:
             model = AutoModelForCausalLM.from_pretrained(
-                model_path, cache_dir=args.cache_dir, config=config, trust_remote_code=True, **kwargs
+                model_path, cache_dir=args.cache_dir, config=config, trust_remote_code=True, device_map="auto", **kwargs #Set device map to 'cuda' if using transformers version 4.48.1
             )
 
         model.eval()

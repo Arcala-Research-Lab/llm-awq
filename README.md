@@ -1,3 +1,31 @@
+# ARCALA: WANDA + AWQ sample commands
+
+LoRA weights are not automatically integrated into model after being saved during`finetune_lm.py`. Go to Wanda repo and run `merge_lora.py` on the target model to merge weights. 
+
+## Generate AWQ Weights
+```
+python -m awq.entry \
+        --model_path ../wanda/lora_ft/lora_merged_models/wanda/llama_7b_0_5 \
+        --cache_dir llm_weights \
+        --w_bit 4 \
+        --q_group_size 128 \
+        --run_awq \
+        --dump_awq awq_wanda_ft/llama_7b_0_5.pt
+```
+## Conduct Perplexity (PPL) Evaluation
+```
+python -m awq.entry \
+        --model_path ../wanda/lora_ft/lora_merged_models/wanda/llama_7b_0_5 \
+        --cache_dir "llm_weights" \
+        --w_bit 4 \
+        --q_group_size 128 \
+        --load_awq awq_wanda_ft/llama_7b_0_5.pt \
+        --q_backend "fake" \
+        --tasks "wikitext" \
+        --eval_seqlen 2048
+```
+
+
 # AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration 
 [[Paper](https://arxiv.org/abs/2306.00978)][[Slides](https://www.dropbox.com/scl/fi/dtnp6h6y1mnp7g036axu6/AWQ-slide.pdf?rlkey=ffgh50hxhx8dmsnjiu8kef0ou&dl=0)][[Video](https://youtu.be/3dYLj9vjfA0)]
 
