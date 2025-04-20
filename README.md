@@ -1,6 +1,6 @@
-# ARCALA: WANDA + AWQ sample commands
+# ARCALA: WANDA + LoRA + AWQ sample commands
 
-LoRA weights are not automatically integrated into model after being saved during`finetune_lm.py`. Go to Wanda repo and run `merge_lora.py` on the target model to merge weights. 
+LoRA weights are not automatically integrated into model after being saved during `finetune_lm.py`. Go to Wanda repo and run `merge_lora.py` on the target model to merge weights. 
 
 ## Generate AWQ Weights
 ```

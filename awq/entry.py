@@ -1,5 +1,6 @@
 from lm_eval import evaluator
-from lm_eval.utils import make_table
+# transformers version 4.48.1 - may help with some errors
+# from lm_eval.utils import make_table
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 import torch
 import argparse
@@ -20,7 +21,7 @@ from awq.quantize.quantizer import (
     get_scales_zeros,
     real_quantize_model_weight,
 )
-from lm_eval.models.huggingface import HFLM
+# from lm_eval.models.huggingface import HFLM
 from awq.utils.utils import simple_dispatch_model
 from awq.scale_list_analysis.modify_scales import round_nearest_power_of_2, set_all_ones
 from awq.scale_list_analysis.get_real_scales_and_zeros import export_scales_zeros
@@ -80,6 +81,7 @@ parser.add_argument(
     action="store_true",
     help="quantizing vila 1.5",
 )
+
 args = parser.parse_args()
 vila_10_quant_mode = ("llava" in args.model_path.lower() or "vila" in args.model_path.lower()) and not args.vila_15
 
@@ -171,7 +173,7 @@ def build_model_and_enc(model_path):
         kwargs = {"torch_dtype": torch.float16, "low_cpu_mem_usage": True}
         if not vila_10_quant_mode:
             model = AutoModelForCausalLM.from_pretrained(
-                model_path, cache_dir=args.cache_dir, config=config, trust_remote_code=True, device_map="auto", **kwargs #Set device map to 'cuda' if using transformers version 4.48.1
+                model_path, cache_dir=args.cache_dir, config=config, trust_remote_code=True, device_map="cuda", **kwargs #Set device map to 'cuda' if using transformers version 4.48.1
             )
 
         model.eval()
@@ -295,7 +297,7 @@ def main():
         if args.tasks != 'wikitext':
             task_names = [x for x in args.tasks.split(",") if x != 'wikitext']
 
-            lm = HFLM(model, max_length=args.eval_seqlen, parallelize=False)
+            lm = evaluator.simple_evaluate(model, max_length=args.eval_seqlen, parallelize=False)
             # lm_eval_model = LMEvalAdaptor(args.model_path, model, enc, args.batch_size)
             results = evaluator.simple_evaluate(
                 model=lm,
@@ -305,7 +307,7 @@ def main():
             )
 
             # print(results)
-            print(make_table(results))
+            # print(make_table(results))
 
         # https://github.com/IST-DASLab/gptq/blob/2d65066eeb06a5c9ff5184d8cebdf33662c67faf/llama.py#L206
         if 'wikitext' in args.tasks:
